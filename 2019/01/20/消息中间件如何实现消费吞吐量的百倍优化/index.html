@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2">
+
+<link rel="stylesheet" href="/css/main.css?v=6.7.0">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-itachi.jpg?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-itachi.jpg?v=6.7.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.7.0" color="#222">
+
+
+
+
+
+
+
+<script id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '6.7.0',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="前情提示上一篇文章：互联网面试必杀：如何保证消息中间件全链路数据100%不丢失（2），我们分析了ack机制的底层实现原理（delivery tag机制），还有消除处理失败时的nack机制如何触发消息重发。 通过这个，已经让大家进一步对消费端保证数据不丢失的方案的理解更进一层了。 这篇文章，我们将会对ack底层的delivery tag机制进行更加深入的分析，让大家理解的更加透彻一些。 unack消">
+<meta name="keywords" content="消息中间件,RabbitMQ">
+<meta property="og:type" content="article">
+<meta property="og:title" content="消息中间件如何实现消费吞吐量的百倍优化">
+<meta property="og:url" content="https://wangxuan-cn.github.io/2019/01/20/消息中间件如何实现消费吞吐量的百倍优化/index.html">
+<meta property="og:site_name" content="诸子百家">
+<meta property="og:description" content="前情提示上一篇文章：互联网面试必杀：如何保证消息中间件全链路数据100%不丢失（2），我们分析了ack机制的底层实现原理（delivery tag机制），还有消除处理失败时的nack机制如何触发消息重发。 通过这个，已经让大家进一步对消费端保证数据不丢失的方案的理解更进一层了。 这篇文章，我们将会对ack底层的delivery tag机制进行更加深入的分析，让大家理解的更加透彻一些。 unack消">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/2.1.jpg">
+<meta property="og:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/2.2.jpg">
+<meta property="og:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/3.jpg">
+<meta property="og:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/4.jpg">
+<meta property="og:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/5.jpg">
+<meta property="og:updated_time" content="2019-08-28T05:57:49.136Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="消息中间件如何实现消费吞吐量的百倍优化">
+<meta name="twitter:description" content="前情提示上一篇文章：互联网面试必杀：如何保证消息中间件全链路数据100%不丢失（2），我们分析了ack机制的底层实现原理（delivery tag机制），还有消除处理失败时的nack机制如何触发消息重发。 通过这个，已经让大家进一步对消费端保证数据不丢失的方案的理解更进一层了。 这篇文章，我们将会对ack底层的delivery tag机制进行更加深入的分析，让大家理解的更加透彻一些。 unack消">
+<meta name="twitter:image" content="https://wangxuan-cn.github.io/images/消息中间件如何实现消费吞吐量的百倍优化/2.1.jpg">
+
+
+
+
+
+
+  <link rel="canonical" href="https://wangxuan-cn.github.io/2019/01/20/消息中间件如何实现消费吞吐量的百倍优化/">
+
+
+
+<script id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>消息中间件如何实现消费吞吐量的百倍优化 | 诸子百家</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .motion-element,
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-title { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">诸子百家</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <p class="site-subtitle">王选的博客</p>
+      
+    
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/archives/" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+            
+
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://wangxuan-cn.github.io/2019/01/20/消息中间件如何实现消费吞吐量的百倍优化/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="wangxuan">
+      <meta itemprop="description" content="诗意生活，如诗如画！">
+      <meta itemprop="image" content="/images/avatar-itachi.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="诸子百家">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">消息中间件如何实现消费吞吐量的百倍优化
+
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-01-20 15:01:55" itemprop="dateCreated datePublished" datetime="2019-01-20T15:01:55+08:00">2019-01-20</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-08-28 13:57:49" itemprop="dateModified" datetime="2019-08-28T13:57:49+08:00">2019-08-28</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/消息中间件/" itemprop="url" rel="index"><span itemprop="name">消息中间件</span></a></span>
+
+                
+                
+                  ，
+                
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/消息中间件/RabbitMQ/" itemprop="url" rel="index"><span itemprop="name">RabbitMQ</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="前情提示"><a href="#前情提示" class="headerlink" title="前情提示"></a>前情提示</h1><p>上一篇文章：<a href="https://juejin.im/post/5c3759fe51882525616dbaf6" target="_blank" rel="noopener"><font color="blue">互联网面试必杀：如何保证消息中间件全链路数据100%不丢失（2）</font></a>，我们分析了ack机制的底层实现原理（delivery tag机制），还有消除处理失败时的nack机制如何触发消息重发。</p>
+<p>通过这个，已经让大家进一步对消费端保证数据不丢失的方案的理解更进一层了。</p>
+<p>这篇文章，我们将会对ack底层的delivery tag机制进行更加深入的分析，让大家理解的更加透彻一些。</p>
+<h1 id="unack消息的积压问题"><a href="#unack消息的积压问题" class="headerlink" title="unack消息的积压问题"></a>unack消息的积压问题</h1><p>首先，我们要给大家介绍一下RabbitMQ的prefetch count这个概念。</p>
+<p>大家看过上篇文章之后应该都知道了，对每个channel（其实对应了一个消费者服务实例，你大体可以这么来认为），RabbitMQ投递消息的时候，都是会带上本次消息投递的一个delivery tag的，唯一标识一次消息投递。</p>
+<p>然后，我们进行ack时，也会带上这个delivery tag，基于同一个channel进行ack，ack消息里会带上delivery tag让RabbitMQ知道是对哪一次消息投递进行了ack，此时就可以对那条消息进行删除了。</p>
+<p>大家先来看一张图，帮助大家回忆一下这个delivery tag的概念。<br><img src="/images/消息中间件如何实现消费吞吐量的百倍优化/2.1.jpg" alt></p>
+<p>所以大家可以考虑一下，对于每个channel而言（你就认为是针对每个消费者服务实例吧，比如一个仓储服务实例），其实都有一些处于unack状态的消息。</p>
+<p>比如RabbitMQ正在投递一条消息到channel，此时消息肯定是unack状态吧？</p>
+<p>然后仓储服务接收到一条消息以后，要处理这条消息需要耗费时间，此时消息肯定是unack状态吧？</p>
+<p>同时，即使你执行了ack之后，你要知道这个ack他默认是异步执行的，尤其如果你开启了批量ack的话，更是有一个延迟时间才会ack的，此时消息也是unack吧？</p>
+<p>那么大家考虑一下，<font color="blue">RabbitMQ他能够无限制的不停给你的消费者服务实例推送消息吗？</font></p>
+<p>明显是不能的，如果RabbitMQ给你的消费者服务实例推送的消息过多过快，比如都有几千条消息积压在某个消费者服务实例的内存中。</p>
+<p>那么此时这几千条消息都是unack的状态，一直积压着，是不是有可能会导致消费者服务实例的内存溢出？内存消耗过大？甚至内存泄露之类的问题产生？</p>
+<p>所以说，RabbitMQ是必须要考虑一下消费者服务的处理能力的。</p>
+<p>大家看看下面的图，感受一下如果消费者服务实例的内存中积压消息过多，都是unack的状态，此时会怎么样。<br><img src="/images/消息中间件如何实现消费吞吐量的百倍优化/2.2.jpg" alt></p>
+<h1 id="如何解决unack消息的积压问题"><a href="#如何解决unack消息的积压问题" class="headerlink" title="如何解决unack消息的积压问题"></a>如何解决unack消息的积压问题</h1><p>正是因为这个原因，RabbitMQ基于一个prefetch count来控制这个unack message的数量。</p>
+<p>你可以通过”<font color="blue">channel.basicQos(10)</font>“这个方法来设置当前channel的prefetch count。</p>
+<p>举个例子，比如你要是设置为10的话，那么意味着当前这个channel里，unack message的数量不能超过10个，以此来避免消费者服务实例积压unack message过多。</p>
+<p>这样的话，就意味着RabbitMQ正在投递到channel过程中的unack message，以及消费者服务在处理中的unack message，以及异步ack之后还没完成ack的unack message，所有这些message加起来，一个channel也不能超过10个。</p>
+<p>如果你要简单粗浅的理解的话，也大致可以理解为这个prefetch count就代表了一个消费者服务同时最多可以获取多少个message来处理。所以这里也点出了prefetch这个单词的意思。</p>
+<p>prefetch就是预抓取的意思，就意味着你的消费者服务实例预抓取多少条message过来处理，但是最多只能同时处理这么多消息。</p>
+<p>如果一个channel里的unack message超过了prefetch count指定的数量，此时RabbitMQ就会停止给这个channel投递消息了，必须要等待已经投递过去的消息被ack了，此时才能继续投递下一个消息。</p>
+<p>老规矩，给大家上一张图，我们一起来看看这个东西是啥意思。<br><img src="/images/消息中间件如何实现消费吞吐量的百倍优化/3.jpg" alt></p>
+<h1 id="高并发场景下的内存溢出问题"><a href="#高并发场景下的内存溢出问题" class="headerlink" title="高并发场景下的内存溢出问题"></a>高并发场景下的内存溢出问题</h1><p>好！现在大家对ack机制底层的另外一个核心机制：prefetch机制也有了一个深刻的理解了。</p>
+<p>此时，咱们就应该来考虑一个问题了。就是<font color="blue">如何来设置这个prefetch count呢？这个东西设置的过大或者过小有什么影响呢？</font></p>
+<p>其实大家理解了上面的图就很好理解这个问题了。</p>
+<p>假如说我们把prefetch count设置的很大，比如说3000，5000，甚至100000，就这样特别大的值，那么此时会如何呢？</p>
+<p>这个时候，在高并发大流量的场景下，可能就会导致消费者服务的内存被快速的消耗掉。</p>
+<p>因为假如说现在MQ接收到的流量特别的大，每秒都上千条消息，而且此时你的消费者服务的prefetch count还设置的特别大，就会导致可能一瞬间你的消费者服务接收到了达到prefetch count指定数量的消息。</p>
+<p>打个比方，比如一下子你的消费者服务内存里积压了10万条消息，都是unack的状态，反正你的prefetch count设置的是10万。</p>
+<p>那么对一个channel，RabbitMQ就会最多容忍10万个unack状态的消息，在高并发下也就最多可能积压10万条消息在消费者服务的内存里。</p>
+<p>那么此时导致的结果，就是消费者服务直接被击垮了，内存溢出，OOM，服务宕机，然后大量unack的消息会被重新投递给其他的消费者服务，此时其他消费者服务一样的情况，直接宕机，最后造成<font color="red">雪崩效应</font>。</p>
+<p>所有的消费者服务因为扛不住这么大的数据量，全部宕机。</p>
+<p>大家来看看下面的图，自己感受一下现场的氛围。<br><img src="/images/消息中间件如何实现消费吞吐量的百倍优化/4.jpg" alt></p>
+<h1 id="低吞吐量问题"><a href="#低吞吐量问题" class="headerlink" title="低吞吐量问题"></a>低吞吐量问题</h1><font color="blue">那么如果反过来呢，我们要是把prefetch count设置的很小会如何呢？</font>
+
+<p>比如说我们把prefetch count设置为1？此时就必然会导致消费者服务的吞吐量极低。因为你即使处理完一条消息，执行ack了也是异步的。</p>
+<p>给你举个例子，假如说你的prefetch count = 1，RabbitMQ最多投递给你1条消息处于unack状态。</p>
+<p>此时比如你刚处理完这条消息，然后执行了ack的那行代码，结果不幸的是，ack需要异步执行，也就是需要100ms之后才会让RabbitMQ感知到。</p>
+<p>那么100ms之后RabbitMQ感知到消息被ack了，此时才会投递给你下一条消息！</p>
+<p>这就尴尬了，在这100ms期间，你的消费者服务是不是啥都没干啊？</p>
+<p>这不就直接导致了你的消费者服务处理消息的吞吐量可能下降10倍，甚至百倍，千倍，都有这种可能！</p>
+<p>大家看看下面的图，感受一下低吞吐量的现场。<br><img src="/images/消息中间件如何实现消费吞吐量的百倍优化/5.jpg" alt></p>
+<h1 id="合理的设置prefetch-count"><a href="#合理的设置prefetch-count" class="headerlink" title="合理的设置prefetch count"></a>合理的设置prefetch count</h1><p>所以鉴于上面两种极端情况，RabbitMQ官方给出的建议是<font color="blue">prefetch count一般设置在100~300之间。</font></p>
+<p>也就是一个消费者服务最多接收到100~300个message来处理，允许处于unack状态。</p>
+<p>这个状态下可以兼顾吞吐量也很高，同时也不容易造成内存溢出的问题。</p>
+<p>但是其实在我们的实践中，这个prefetch count大家完全是可以自己去压测一下的。</p>
+<p>比如说慢慢调节这个值，不断加大，观察高并发大流量之下，吞吐量是否越来越大，而且观察消费者服务的内存消耗，会不会OOM、频繁FullGC等问题。</p>
+<h1 id="阶段性总结"><a href="#阶段性总结" class="headerlink" title="阶段性总结"></a>阶段性总结</h1><p>其实通过最近几篇文章，基本上已经把消息中间件的消费端如何保证数据不丢失这个问题剖析的较为深入和透彻了。</p>
+<p>如果你是基于RabbitMQ来做消息中间件的话，消费端的代码里，必须考虑三个问题：<strong>手动ack、处理失败的nack、prefetch count的合理设置</strong></p>
+<p>这三个问题背后涉及到了各种机制：</p>
+<ul>
+<li>自动ack机制</li>
+<li>delivery tag机制</li>
+<li>ack批量与异步提交机制</li>
+<li>消息重发机制</li>
+<li>手动nack触发消息重发机制</li>
+<li>prefetch count过大导致内存溢出问题</li>
+<li>prefetch count过小导致吞吐量过低</li>
+</ul>
+<p>所以到现在，单论消费端这块的数据不丢失技术方案，相信大家可以有一整套自己的理解和方案。</p>
+<p>作者：石杉的架构笔记<br>链接：<a href="https://juejin.im/post/5c3b392e518825255d296f78" target="_blank" rel="noopener">https://juejin.im/post/5c3b392e518825255d296f78</a></p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+      
+    
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/消息中间件/" rel="tag"># 消息中间件</a>
+          
+            <a href="/tags/RabbitMQ/" rel="tag"># RabbitMQ</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/01/19/如何保证消息中间件全链路数据不丢失2/" rel="next" title="如何保证消息中间件全链路数据不丢失2">
+                <i class="fa fa-chevron-left"></i> 如何保证消息中间件全链路数据不丢失2
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/01/20/如何保证生产者投递到消息中间件的消息不丢失/" rel="prev" title="如何保证生产者投递到消息中间件的消息不丢失">
+                如何保证生产者投递到消息中间件的消息不丢失 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar-itachi.png" alt="wangxuan">
+            
+              <p class="site-author-name" itemprop="name">wangxuan</p>
+              <p class="site-description motion-element" itemprop="description">诗意生活，如诗如画！</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">19</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">14</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">13</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  
+                  
+                    
+                  
+                  
+                    
+                  
+                  <a href="https://github.com/wangxuan-cn" title="GitHub &rarr; https://github.com/wangxuan-cn" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  
+                  
+                    
+                  
+                  
+                    
+                  
+                  <a href="mailto:wangxuan_google@163.com" title="E-Mail &rarr; mailto:wangxuan_google@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                </span>
+              
+            </div>
+          
+
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </div>
+
+      
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#前情提示"><span class="nav-number">1.</span> <span class="nav-text">前情提示</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#unack消息的积压问题"><span class="nav-number">2.</span> <span class="nav-text">unack消息的积压问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#如何解决unack消息的积压问题"><span class="nav-number">3.</span> <span class="nav-text">如何解决unack消息的积压问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#高并发场景下的内存溢出问题"><span class="nav-number">4.</span> <span class="nav-text">高并发场景下的内存溢出问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#低吞吐量问题"><span class="nav-number">5.</span> <span class="nav-text">低吞吐量问题</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#合理的设置prefetch-count"><span class="nav-number">6.</span> <span class="nav-text">合理的设置prefetch count</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#阶段性总结"><span class="nav-number">7.</span> <span class="nav-text">阶段性总结</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">wangxuan</span>
+
+  
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v6.7.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+    
+
+    
+  </div>
+
+  
+
+<script>
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+
+  
+
+
+  <script src="/js/src/utils.js?v=6.7.0"></script>
+
+  <script src="/js/src/motion.js?v=6.7.0"></script>
+
+
+
+  
+  
+
+
+  <script src="/js/src/affix.js?v=6.7.0"></script>
+
+  <script src="/js/src/schemes/pisces.js?v=6.7.0"></script>
+
+
+
+
+  
+  <script src="/js/src/scrollspy.js?v=6.7.0"></script>
+<script src="/js/src/post-details.js?v=6.7.0"></script>
+
+
+
+  
+
+
+  <script src="/js/src/bootstrap.js?v=6.7.0"></script>
+
+
+
+  
+
+
+  
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

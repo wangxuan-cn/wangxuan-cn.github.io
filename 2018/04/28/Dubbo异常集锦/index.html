@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2">
+
+<link rel="stylesheet" href="/css/main.css?v=6.7.0">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-itachi.jpg?v=6.7.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-itachi.jpg?v=6.7.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.7.0" color="#222">
+
+
+
+
+
+
+
+<script id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '6.7.0',
+    sidebar: {"position":"right","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="消费者调用不到提供者可能的情况：1）消费者和提供者配置的zookeeper不是同一个。各自检查各自的zookeeper配置的ip。2）消费者和提供者之间网络不通，通过dubbo-admin管理平台看提供者ip,然后从消费者机器,ping ip地址，看网络是否通。3）提供者没有注册到zookeeper，可通过dubbo-admin管理平台看状态。 点对点直连服务提供者地址，将绕过注册中心我们可以指定">
+<meta name="keywords" content="Dubbo">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Dubbo异常集锦">
+<meta property="og:url" content="https://wangxuan-cn.github.io/2018/04/28/Dubbo异常集锦/index.html">
+<meta property="og:site_name" content="诸子百家">
+<meta property="og:description" content="消费者调用不到提供者可能的情况：1）消费者和提供者配置的zookeeper不是同一个。各自检查各自的zookeeper配置的ip。2）消费者和提供者之间网络不通，通过dubbo-admin管理平台看提供者ip,然后从消费者机器,ping ip地址，看网络是否通。3）提供者没有注册到zookeeper，可通过dubbo-admin管理平台看状态。 点对点直连服务提供者地址，将绕过注册中心我们可以指定">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-08-28T05:57:49.108Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Dubbo异常集锦">
+<meta name="twitter:description" content="消费者调用不到提供者可能的情况：1）消费者和提供者配置的zookeeper不是同一个。各自检查各自的zookeeper配置的ip。2）消费者和提供者之间网络不通，通过dubbo-admin管理平台看提供者ip,然后从消费者机器,ping ip地址，看网络是否通。3）提供者没有注册到zookeeper，可通过dubbo-admin管理平台看状态。 点对点直连服务提供者地址，将绕过注册中心我们可以指定">
+
+
+
+
+
+
+  <link rel="canonical" href="https://wangxuan-cn.github.io/2018/04/28/Dubbo异常集锦/">
+
+
+
+<script id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>Dubbo异常集锦 | 诸子百家</title>
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .motion-element,
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-title { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-right page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">诸子百家</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <p class="site-subtitle">王选的博客</p>
+      
+    
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+
+    
+    
+    
+      
+    
+
+    
+
+    <a href="/archives/" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+            
+
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://wangxuan-cn.github.io/2018/04/28/Dubbo异常集锦/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="wangxuan">
+      <meta itemprop="description" content="诗意生活，如诗如画！">
+      <meta itemprop="image" content="/images/avatar-itachi.png">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="诸子百家">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Dubbo异常集锦
+
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-04-28 09:41:35" itemprop="dateCreated datePublished" datetime="2018-04-28T09:41:35+08:00">2018-04-28</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-08-28 13:57:49" itemprop="dateModified" datetime="2019-08-28T13:57:49+08:00">2019-08-28</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/Dubbo/" itemprop="url" rel="index"><span itemprop="name">Dubbo</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h1 id="消费者调用不到提供者"><a href="#消费者调用不到提供者" class="headerlink" title="消费者调用不到提供者"></a>消费者调用不到提供者</h1><p>可能的情况：<br>1）消费者和提供者配置的zookeeper不是同一个。各自检查各自的zookeeper配置的ip。<br>2）消费者和提供者之间网络不通，通过dubbo-admin管理平台看提供者ip,然后从消费者机器,ping ip地址，看网络是否通。<br>3）提供者没有注册到zookeeper，可通过dubbo-admin管理平台看状态。</p>
+<h1 id="点对点直连服务提供者地址，将绕过注册中心"><a href="#点对点直连服务提供者地址，将绕过注册中心" class="headerlink" title="点对点直连服务提供者地址，将绕过注册中心"></a>点对点直连服务提供者地址，将绕过注册中心</h1><p>我们可以指定调用服务提供者。只需要做如下配置即可：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">@Reference(check = false, url = &quot;dubbo://172.19.24.134:20928/com.suneee.scn.system.api.provider.UserProvider&quot;)</span><br><span class="line">private static UserProvider userProvider;</span><br></pre></td></tr></table></figure></p>
+<p>这种配置仅供开发测试使用，上测试环境或生产环境的时候一定要删除。<br>指定URL的具体IP，可以用作本机debug调试。</p>
+<h1 id="消费者调用不到已经注册了的提供者"><a href="#消费者调用不到已经注册了的提供者" class="headerlink" title="消费者调用不到已经注册了的提供者"></a>消费者调用不到已经注册了的提供者</h1><p>提供者已经注册到zookeeper的注册中心，但是没有正确引用。<br>错误提示如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">No provider available in [invoker :interface com.suneee.scn.system.api.provider.UserProvider -&gt;</span><br><span class="line">zookeeper://zookeeper.vr.weilian.cn:12233/com.alibaba.dubbo.registry.RegistryService?application=mcs-rest&amp;check=false&amp;default.check=fal</span><br><span class="line">se&amp;default.reference.filter=default&amp;default.timeout=16000&amp;dubbo=2.8.6&amp;interface=com.suneee.scn.system.api.provider.UserProvider&amp;methods</span><br><span class="line">=findUserInfo,findByRole,getUserInfoAndEnterpriseInfo,findById,getUserListInEnterprise&amp;owner=sunEeemcs&amp;pid=8296&amp;revision=1.0.0-20180424</span><br><span class="line">.015002-6&amp;side=consumer&amp;timestamp=1524879034209,directory: com.alibaba.dubbo.registry.integration.RegistryDirectory@70211df5, invoker</span><br><span class="line">:interface com.suneee.scn.system.api.provider.UserProvider -&gt;</span><br><span class="line">zookeeper://zookeeper.vr.weilian.cn:12233/com.alibaba.dubbo.registry.RegistryService?application=mcs-rest&amp;check=false&amp;default.check=fal</span><br><span class="line">se&amp;default.reference.filter=default&amp;default.timeout=16000&amp;dubbo=2.8.6&amp;interface=com.suneee.scn.system.api.provider.UserProvider&amp;methods</span><br><span class="line">=findUserInfo,findByRole,getUserInfoAndEnterpriseInfo,findById,getUserListInEnterprise&amp;owner=sunEeemcs&amp;pid=8296&amp;revision=1.0.0-20180424</span><br><span class="line">.015002-6&amp;side=consumer&amp;timestamp=1524879034209,directory: com.alibaba.dubbo.registry.integration.RegistryDirectory@38e7ed69]</span><br></pre></td></tr></table></figure></p>
+<p>提供者在zookeeper的注册中心已经注册了，但是提供者加了版本号，提供者代码如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">@Service(version=&quot;1.0&quot;)</span><br><span class="line">public class UserProviderImpl implements UserProvider &#123;</span><br></pre></td></tr></table></figure></p>
+<p>消费者引用代码如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">@Reference(check = false)</span><br><span class="line">private UserProvider userProvider;</span><br></pre></td></tr></table></figure></p>
+<p>错误原因：没有加版本号<br>修改代码如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">@Reference(check = false, version = &quot;1.0&quot;)</span><br><span class="line">private UserProvider userProvider;</span><br></pre></td></tr></table></figure></p>
+<h1 id="提供者的方法没有注册"><a href="#提供者的方法没有注册" class="headerlink" title="提供者的方法没有注册"></a>提供者的方法没有注册</h1><p>消费者有的方法可以调用，有的不能调用，出现：com.alibaba.dubbo.rpc.RpcException: Failed to invoke the method异常，由于提供者新加的方法并没有注册到zookeeper的注册中心导致的。<br>错误提示如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">com.alibaba.dubbo.rpc.RpcException: Failed to invoke the method getUserListInEnterprise in the service</span><br><span class="line">com.suneee.scn.system.api.provider.UserProvider. Tried 3 times of the providers [172.16.36.67:21117] (1/1) from the registry</span><br><span class="line">zookeeper.vr.weilian.cn:12233 on the consumer 172.19.24.134 using the dubbo version 2.8.6. Last error is: Failed to invoke remote</span><br><span class="line">method: getUserListInEnterprise, provider:</span><br><span class="line">dubbo://172.16.36.67:21117/com.suneee.scn.system.api.provider.UserProvider?anyhost=true&amp;application=mcs-rest&amp;check=false&amp;default.check=</span><br><span class="line">false&amp;default.reference.filter=default&amp;default.timeout=16000&amp;dubbo=1.0.0-SNAPSHOT&amp;generic=false&amp;interface=com.suneee.scn.system.api.pro</span><br><span class="line">vider.UserProvider&amp;methods=findUserInfo,findByRole,findById,getUserByParam&amp;owner=sunEeemcs&amp;pid=10828&amp;revision=1.0.0-20180424.015002-6&amp;s</span><br><span class="line">erialization=kryo&amp;server=netty4&amp;side=consumer&amp;timestamp=1524825911114&amp;version=1.0, cause: com.alibaba.dubbo.rpc.RpcException: Failed</span><br><span class="line">to invoke remote proxy method getUserListInEnterprise to</span><br><span class="line">registry://zookeeper.vr.weilian.cn:12233/com.alibaba.dubbo.registry.RegistryService?application=system-provider&amp;dubbo=1.0.0-SNAPSHOT&amp;ex</span><br><span class="line">port=dubbo%3A%2F%2F172.16.36.67%3A21117%2Fcom.suneee.scn.system.api.provider.UserProvider%3Fanyhost%3Dtrue%26application%3Dsystem-provi</span><br><span class="line">der%26dubbo%3D1.0.0-SNAPSHOT%26generic%3Dfalse%26interface%3Dcom.suneee.scn.system.api.provider.UserProvider%26methods%3DfindUserInfo%2</span><br><span class="line">CfindByRole%2CfindById%2CgetUserByParam%26owner%3DsunEeeSystem%26pid%3D44275%26revision%3D1.0.0-SNAPSHOT%26serialization%3Dkryo%26serve</span><br><span class="line">r%3Dnetty4%26side%3Dprovider%26timestamp%3D1524825191422%26version%3D1.0&amp;owner=sunEeeSystem&amp;pid=44275&amp;registry=zookeeper&amp;server=netty4&amp;</span><br><span class="line">timestamp=1524825181399, cause: Not found method &quot;getUserListInEnterprise&quot; in class com.suneee.scn.system.api.provider.UserProvider.</span><br><span class="line">com.alibaba.dubbo.rpc.RpcException: Failed to invoke remote proxy method getUserListInEnterprise to</span><br><span class="line">registry://zookeeper.vr.weilian.cn:12233/com.alibaba.dubbo.registry.RegistryService?application=system-provider&amp;dubbo=1.0.0-SNAPSHOT&amp;ex</span><br><span class="line">port=dubb</span><br></pre></td></tr></table></figure></p>
+<p>如果有提供者的代码，包含了新加方法的代码，本机启动，向zookeeper的注册中心注册新加的方法，消费者就可以调用到新注册的方法，这样只能作为本机调试！最终还是得让提供者重启服务向注册中心注册新加的方法！  </p>
+<h1 id="Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime"><a href="#Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime" class="headerlink" title="Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime"></a>Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime</h1><p>Dubbox不同于Dubbo，Dubbox是当当网在Dubbo的基础上进行的扩展，其中一项扩展是支持kyro系列化。<br>当Consumer调用Provider的时候，参数Bean的属性类型如果包含LocalDateTime、LocalDate、LocalTime将产生超时，需要将这些类型转换成Date。其中Dubbox的版本是2.8.6，希望Dubbox的以后版本能解决这个问题！</p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+      
+    
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Dubbo/" rel="tag"># Dubbo</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/04/27/Atom使用/" rel="next" title="Atom使用">
+                <i class="fa fa-chevron-left"></i> Atom使用
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/05/15/PostgreSQL使用总结/" rel="prev" title="PostgreSQL使用总结">
+                PostgreSQL使用总结 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/avatar-itachi.png" alt="wangxuan">
+            
+              <p class="site-author-name" itemprop="name">wangxuan</p>
+              <p class="site-description motion-element" itemprop="description">诗意生活，如诗如画！</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">19</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">14</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">13</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  
+                  
+                    
+                  
+                  
+                    
+                  
+                  <a href="https://github.com/wangxuan-cn" title="GitHub &rarr; https://github.com/wangxuan-cn" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                </span>
+              
+                <span class="links-of-author-item">
+                  
+                  
+                    
+                  
+                  
+                    
+                  
+                  <a href="mailto:wangxuan_google@163.com" title="E-Mail &rarr; mailto:wangxuan_google@163.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                </span>
+              
+            </div>
+          
+
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </div>
+
+      
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#消费者调用不到提供者"><span class="nav-number">1.</span> <span class="nav-text">消费者调用不到提供者</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#点对点直连服务提供者地址，将绕过注册中心"><span class="nav-number">2.</span> <span class="nav-text">点对点直连服务提供者地址，将绕过注册中心</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#消费者调用不到已经注册了的提供者"><span class="nav-number">3.</span> <span class="nav-text">消费者调用不到已经注册了的提供者</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#提供者的方法没有注册"><span class="nav-number">4.</span> <span class="nav-text">提供者的方法没有注册</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime"><span class="nav-number">5.</span> <span class="nav-text">Dubbox的kyro系列化不支持JDK8新功能LocalDateTime、LocalDate、LocalTime</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">wangxuan</span>
+
+  
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v6.7.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+    
+
+    
+  </div>
+
+  
+
+<script>
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+
+  
+
+
+  <script src="/js/src/utils.js?v=6.7.0"></script>
+
+  <script src="/js/src/motion.js?v=6.7.0"></script>
+
+
+
+  
+  
+
+
+  <script src="/js/src/affix.js?v=6.7.0"></script>
+
+  <script src="/js/src/schemes/pisces.js?v=6.7.0"></script>
+
+
+
+
+  
+  <script src="/js/src/scrollspy.js?v=6.7.0"></script>
+<script src="/js/src/post-details.js?v=6.7.0"></script>
+
+
+
+  
+
+
+  <script src="/js/src/bootstrap.js?v=6.7.0"></script>
+
+
+
+  
+
+
+  
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
